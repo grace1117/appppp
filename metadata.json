@@ -1,0 +1,8 @@
+{
+  "name": "Remix: Remix: 世新大學租屋整合平台",
+  "description": "專為世新大學學子打造的透明租屋整合平台，提供房源搜尋、深度比較分析、校園驗證與通知功能。",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

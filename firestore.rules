@@ -1,0 +1,152 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global default-deny catch-all safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Reuseable global helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Entity validation blueprint for user requirements
+    function isValidRequirements(req) {
+      return (!req.keys().hasAll(['maxPrice']) || req.maxPrice is number)
+        && (!req.keys().hasAll(['maxDistance']) || (req.maxDistance is string && req.maxDistance.size() <= 100))
+        && (!req.keys().hasAll(['needElevator']) || req.needElevator is bool)
+        && (!req.keys().hasAll(['amenities']) || (req.amenities is list && req.amenities.size() <= 40))
+        && (!req.keys().hasAll(['rawText']) || (req.rawText is string && req.rawText.size() <= 1500));
+    }
+
+    // Entity validation blueprint for user profile matching firebase-blueprint.json
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['uid', 'name', 'studentId', 'department'])
+        && data.keys().size() >= 4 && data.keys().size() <= 12
+        && data.uid == request.auth.uid
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 120
+        && data.studentId is string && data.studentId.size() > 0 && data.studentId.size() <= 60
+        && data.department is string && data.department.size() > 0 && data.department.size() <= 120
+        && (!data.keys().hasAll(['isVerified']) || data.isVerified is bool)
+        && (!data.keys().hasAll(['avatar']) || (data.avatar is string && data.avatar.size() <= 1500))
+        && (!data.keys().hasAll(['favorites']) || (data.favorites is list && data.favorites.size() <= 150))
+        && (!data.keys().hasAll(['comparedIds']) || (data.comparedIds is list && data.comparedIds.size() <= 20))
+        && (!data.keys().hasAll(['requirements']) || isValidRequirements(data.requirements));
+    }
+
+    // Entity validation blueprint for review matching firebase-blueprint.json
+    function isValidReview(data) {
+      return data.keys().hasAll(['id', 'author', 'dept', 'avatar', 'content', 'rating', 'createdAt', 'userId'])
+        && data.keys().size() == 8
+        && data.id is string && data.id.size() > 0 && data.id.size() <= 128
+        && data.author is string && data.author.size() > 0 && data.author.size() <= 100
+        && data.dept is string && data.dept.size() > 0 && data.dept.size() <= 100
+        && data.avatar is string && data.avatar.size() <= 300
+        && data.content is string && data.content.size() > 0 && data.content.size() <= 2000
+        && (data.rating is number || data.rating is float) && data.rating >= 0 && data.rating <= 5
+        && data.userId == request.auth.uid
+        && data.createdAt == request.time;
+    }
+
+    // Entity validation blueprint for landlord rating matching firebase-blueprint.json
+    function isValidLandlordRating(data) {
+      return data.keys().hasAll(['id', 'userId', 'overallRating', 'responseSpeed', 'communicationAttitude', 'repairEfficiency', 'contractTransparency', 'depositReturnFairness', 'assistanceSubsidies', 'comment', 'createdAt'])
+        && data.keys().size() == 11
+        && data.id is string && data.id.size() > 0 && data.id.size() <= 128
+        && data.userId == request.auth.uid
+        && data.overallRating is number && data.overallRating >= 1 && data.overallRating <= 5
+        && data.responseSpeed is number && data.responseSpeed >= 1 && data.responseSpeed <= 5
+        && data.communicationAttitude is number && data.communicationAttitude >= 1 && data.communicationAttitude <= 5
+        && data.repairEfficiency is number && data.repairEfficiency >= 1 && data.repairEfficiency <= 5
+        && data.contractTransparency is number && data.contractTransparency >= 1 && data.contractTransparency <= 5
+        && data.depositReturnFairness is number && data.depositReturnFairness >= 1 && data.depositReturnFairness <= 5
+        && data.assistanceSubsidies is number && data.assistanceSubsidies >= 1 && data.assistanceSubsidies <= 5
+        && data.comment is string && data.comment.size() <= 600
+        && data.createdAt == request.time;
+    }
+
+    // Entity validation blueprint for property matching firebase-blueprint.json
+    function isValidProperty(data) {
+      return data.keys().hasAll(['id', 'title', 'price', 'location', 'timeUnit', 'image', 'tags', 'distance', 'source', 'totalEstimate', 'rating'])
+        && data.id is string && data.id.size() > 0 && data.id.size() <= 128
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 200
+        && data.price is number
+        && data.location is string && data.location.size() > 0 && data.location.size() <= 200
+        && data.timeUnit is string
+        && data.image is string && data.image.size() <= 500
+        && data.tags is list && data.tags.size() <= 20
+        && data.distance is string && data.distance.size() <= 100
+        && data.source is string && (data.source == 'platform' || data.source == 'exclusive' || data.source == 'alumni' || data.source == 'FB')
+        && data.totalEstimate is number
+        && (data.rating is number || data.rating is float);
+    }
+
+    // Collection 1: properties
+    // Read: open to the public
+    // Create: signed-in users can co-create properties if validated
+    match /properties/{propertyId} {
+      allow read: if true;
+      allow create: if isSignedIn() && isValidId(propertyId) && isValidProperty(request.resource.data);
+      allow update, delete: if false; // Properties are lock after co-creation to prevent damage
+
+      // Collection 2: reviews subcollection
+      // Read: open to the public
+      // Create: user must be signed in & matching auth payload & parent property must exist
+      match /reviews/{reviewId} {
+        allow read: if true;
+        allow create: if isSignedIn()
+          && isValidId(propertyId)
+          && isValidId(reviewId)
+          && exists(/databases/$(database)/documents/properties/$(propertyId))
+          && isValidReview(request.resource.data);
+        allow update, delete: if false; // Reviews are immutable once posted
+      }
+
+      // Collection 4: landlord_ratings subcollection
+      // Read: open to the public
+      // Create: user must be signed in & matching auth payload & parent property must exist
+      match /landlord_ratings/{ratingId} {
+        allow read: if true;
+        allow create: if isSignedIn()
+          && isValidId(propertyId)
+          && isValidId(ratingId)
+          && exists(/databases/$(database)/documents/properties/$(propertyId))
+          && isValidLandlordRating(request.resource.data);
+        allow update, delete: if false; // Immutable once posted
+      }
+    }
+
+    // Collection 3: users (and profiles)
+    // Read: only user owner can access
+    // Write: only user owner can create or update
+    match /users/{userId} {
+      allow read: if isOwner(userId) && isValidId(userId);
+      allow create: if isOwner(userId)
+        && isValidId(userId)
+        && isValidUserProfile(request.resource.data);
+      allow update: if isOwner(userId)
+        && isValidId(userId)
+        && isValidUserProfile(request.resource.data)
+        && request.resource.data.uid == resource.data.uid
+        && (
+          !resource.data.keys().hasAll(['isVerified']) ||
+          !request.resource.data.keys().hasAll(['isVerified']) ||
+          request.resource.data.isVerified == resource.data.isVerified
+        )
+        && (
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['favorites', 'comparedIds', 'name', 'department', 'avatar', 'studentId', 'requirements'])
+        );
+      allow delete: if false; // Deletions of profiles not allowed via clients
+    }
+  }
+}

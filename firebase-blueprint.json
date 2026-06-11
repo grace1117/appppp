@@ -1,0 +1,99 @@
+{
+  "entities": {
+    "Property": {
+      "title": "Property",
+      "description": "Student rental property information around Shih Hsin University",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "The unique property identifier" },
+        "title": { "type": "string", "description": "The title of the property" },
+        "price": { "type": "number", "description": "Base monthly rental price" },
+        "location": { "type": "string", "description": "Approximate location address" },
+        "timeUnit": { "type": "string", "description": "Billing frequency, usually month" },
+        "image": { "type": "string", "description": "Unsplash image preview URL" },
+        "tags": { "type": "array", "description": "Badges representing highlight features" },
+        "distance": { "type": "string", "description": "Walking or commuting distance to campus" },
+        "source": { "type": "string", "enum": ["platform", "exclusive", "alumni", "FB"], "description": "Source platform of the listing" },
+        "totalEstimate": { "type": "number", "description": "Sum of monthly租金, water, electric, and management estimation" },
+        "rating": { "type": "number", "description": "Aggregated user student rating" },
+        "floor": { "type": "string", "description": "Floor info like 3F/5F" },
+        "description": { "type": "string", "description": "Detailed landlord description" },
+        "amenities": { "type": "array", "description": "Equipped appliances and room offerings" },
+        "costBreakdown": { "type": "object", "description": "Estimated split details" }
+      },
+      "required": ["id", "title", "price", "location", "timeUnit", "image"]
+    },
+    "Review": {
+      "title": "Review",
+      "description": "Student reviews and feedback on specific rental properties",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "author": { "type": "string" },
+        "dept": { "type": "string" },
+        "avatar": { "type": "string" },
+        "content": { "type": "string" },
+        "rating": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "author", "dept", "avatar", "content", "rating"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "A student's authenticated user profile, saved preferences, comparing, and verification status",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "studentId": { "type": "string" },
+        "department": { "type": "string" },
+        "isVerified": { "type": "boolean" },
+        "avatar": { "type": "string" },
+        "favorites": { "type": "array", "description": "Favorite rental property IDs list" },
+        "comparedIds": { "type": "array", "description": "Compared rental property IDs list" },
+        "requirements": {
+          "type": "object",
+          "description": "Student budget, distance, and core amenity search filters to match best listings"
+        }
+      },
+      "required": ["uid", "name", "studentId", "department"]
+    },
+    "LandlordRating": {
+      "title": "LandlordRating",
+      "description": "Anonymous landlord administrative rating and management service feedback",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "overallRating": { "type": "number" },
+        "responseSpeed": { "type": "number" },
+        "communicationAttitude": { "type": "number" },
+        "repairEfficiency": { "type": "number" },
+        "contractTransparency": { "type": "number" },
+        "depositReturnFairness": { "type": "number" },
+        "assistanceSubsidies": { "type": "number" },
+        "comment": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userId", "overallRating", "responseSpeed", "communicationAttitude", "repairEfficiency", "contractTransparency", "depositReturnFairness", "assistanceSubsidies"]
+    }
+  },
+  "firestore": {
+    "/properties": {
+      "schema": "Property",
+      "description": "Stores Shih Hsin University rental properties catalog"
+    },
+    "/properties/{propertyId}/reviews": {
+      "schema": "Review",
+      "description": "Stores user student reviews for a specific property"
+    },
+    "/properties/{propertyId}/landlord_ratings": {
+      "schema": "LandlordRating",
+      "description": "Stores anonymous landlord service ratings and textual reviews"
+    },
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Stores active user settings, profile variables, lists of favorites and compared structures"
+    }
+  }
+}
